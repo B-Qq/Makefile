@@ -1,28 +1,71 @@
-SHELL = /bin/bash
- 
+#SHELL = /bin/bash
+
+#递归搜索Makefile所在目录
 AllDirs := $(shell ls -R | grep '^\./.*:$$' | awk '{gsub(":","");print}') .
+#循环查找各个文件夹下的.cpp文件
 Sources := $(foreach n,$(AllDirs) , $(wildcard $(n)/*.cpp))
-Objs := $(patsubst %.cpp,%.o, $(Sources))
+#将.cpp文件替换成.o文件
+OBJS := $(patsubst %.cpp,%.o, $(Sources))
+#将.cpp文件替换成.d文件
 Deps := $(patsubst %.cpp,%.d, $(Sources))
-StaticLib := libyy.a
-DynamicLib := libyy.so
-Bin := yy
+
+#静态库名字
+StaticLib := ./example/libyy.a
+#动态库名字
+DynamicLib := ./example/libyy.so
+#可执行文件名字
+TARGET := ./example/main
+
+#编译成静态库
 #AllLibs : $(DynamicLib)
+#编译成动态库
+#DynamicLib := libyy.so
 #AllLibs : $(StaticLib) 
-AllLibs : $(Bin)
+#编译成可执行文件
+Exec : $(TARGET)
+
+#头文件
+INCLUDE = -I./../../include\
+		  -I./../../include/zdb \
+		  -I./../../include/DateTime \
+		  -I./../../include/acl   \
+		  -I./../../include/acl/lib_acl/include  \
+		  -I./../../include/acl/lib_acl_cpp/include     \
+		  -I./../../include/acl/lib_protocol/include
+
+#链接库
+LDFLAGS = -L./../../lib -lConfig \
+		  -L./../../lib -llog \
+		  -L./../../lib -lMThread \
+		  -L./../../lib/zdb -lZdbClient \
+		  -L./../../lib -lDateTime \
+		  -L./../../lib  -lKvClient
+
 CC = g++
-CXXFLAGS = -g -O2 -fPIC -Wall
-CPPFLAGS = $(foreach n,$(AllDirs) , -I$(n))
-LDFLAGS = -lstdc++
-$(StaticLib) : $(Objs)
+#编译选项
+CXXFLAGS = -g -fPIC -Wall -W -std=c++11
+CPPFLAGS = $(foreach n,$(AllDirs) , -I$(n)) $(INCLUDE)
+
+#生成静态库
+$(StaticLib) : $(OBJS)
 	ar rcs $@ $^
-$(DynamicLib) : $(Objs)
+#生成动态库
+$(DynamicLib) : $(OBJS)
 	g++ -shared -o $@ $^ $(LDFLAGS)
-$(Bin) : $(Objs)
-	g++ $(Objs) -o $@
+#生成可执行文件
+$(TARGET) : $(OBJS)
+	g++ $(OBJS) -o $@ $(LDFLAGS)
+
+#自动生成以来文件
 %.d : %.cpp
 	$(CC) -MT"$(<:.cpp=.o) $@" -MM $(CXXFLAGS) $(CPPFLAGS) $< > $@
 sinclude $(Deps)
-.PHONY : clean
+
+.PHONY :clean rebuild
+
+
+rebuild:clean Exec
+
 clean: 
-	rm -f $(Objs) $(Deps) $(StaticLib) $(DynamicLib) $(Bin)
+	rm -f $(OBJS) $(Deps) $(StaticLib) $(DynamicLib) $(TARGET)
+
