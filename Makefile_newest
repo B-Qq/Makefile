@@ -1,0 +1,78 @@
+#可执行文件名字
+TARGET := ShorePowerComm
+#静态库名字
+StaticLib := ShorePowerComm.a
+#动态库名字
+DynamicLib := libShorePowerComm.so
+ 
+#注意每行后面不要有空格，否则会算到目录名里面，导致问题
+BUILD_DIR = build
+OBJ_DIR = $(BUILD_DIR)/obj
+DEPS_DIR  = $(BUILD_DIR)/deps
+TARGET_DIR = $(BUILD_DIR)
+
+#递归搜索Makefile所在目录
+DIRS := $(shell ls -R | grep '^\./.*:$$' | awk '{gsub(":","");print}') .
+#编译选项
+CC := g++ 
+CXXFLAGS = -g -fPIC -Wall -W -std=c++11
+CPPFLAGS = $(foreach n,$(AllDirs) , -I$(n)) $(INCLUDE)
+
+#查找src_dir下面包含子目录的所有cpp文件
+SOURCES   = $(foreach dir, $(DIRS), $(wildcard $(dir)/*.cpp))  
+OBJS   = $(addprefix $(OBJ_DIR)/,$(patsubst %.cpp,%.o,$(notdir $(SOURCES))))  
+DEPS  = $(addprefix $(DEPS_DIR)/, $(patsubst %.cpp,%.d,$(notdir $(SOURCES))))  
+ 
+#这里添加其他头文件路径
+INCLUDE = \
+	-I./include \
+	-I./include/zdb\
+	-I./include/MNetServer \
+	-I./include/MThread \
+	-I./src/ProtocolLib104/MDataNodeClass/DataNodeClassPack \
+	-I./src/ProtocolLib104/MDataNodeClass/DataNode \
+	-I./src/ProtocolLib104/MDataNodeClass/JsonXml \
+	-I./src \
+	-I./src/source \
+	-I./src/ProtocolLib104
+	
+#这里添加编译参数
+LDFLAGS := \
+	-L./lib  -lMThread \
+	-L./lib   -lZdbClient \
+	-L./lib/.libs  \
+	-L./lib   -lMNetServer
+ 
+#这里递归遍历3级子目录
+#DIRS := $(shell find $(SRC_DIR) -maxdepth 4 -type d)
+ 
+#将每个子目录添加到搜索路径
+VPATH = $(DIRS)
+ 
+#Exec : $(TARGET_DIR)/$(TARGET)
+Exec : $(TARGET_DIR)/$(DynamicLib)
+
+#生成动态库
+$(TARGET_DIR)/$(DynamicLib) : $(OBJS)
+	g++ -shared -o $@ $^ $(LDFLAGS)
+
+$(TARGET_DIR)/$(TARGET):$(OBJS)
+	@if [ ! -d $(TARGET_DIR) ]; then mkdir -p $(TARGET_DIR); fi;
+	$(CC) $^ $(LDFLAGS) -o $@
+#编译之前要创建OBJ目录，确保目录存在
+$(OBJ_DIR)/%.o:%.cpp
+	@if [ ! -d $(OBJ_DIR) ]; then mkdir -p $(OBJ_DIR); fi;
+	$(CC) -c $(CPPFLAGS) $(CXXFLAGS) -o $@ $<
+
+#自动生成依赖文件
+#编译之前要创建DEPS目录，确保目录存在
+#前面加@表示隐藏命令的执行打印
+$(DEPS_DIR)/%.d:%.cpp
+	@if [ ! -d $(DEPS_DIR) ]; then mkdir -p $(DEPS_DIR); fi;
+	$(CC) -MT"$(<:.cpp=.o) $@" -MM $(CXXFLAGS) $(CPPFLAGS) $< > $@
+#前面加-表示忽略错误
+-include $(DEPS)
+
+.PHONY : clean
+clean:
+	rm -rf $(BUILD_DIR) $(TARGET)
